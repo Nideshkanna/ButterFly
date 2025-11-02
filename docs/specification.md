@@ -1,11 +1,17 @@
 # 🦋 **ButterFly RISC-V Core — Architecture Specification**
 
-**Version:** 1.0
+**Version:** 1.0 
+
 **Author:** Nidesh Kanna R
+
 **Email:** [nideshram01@gmail.com](mailto:nideshram01@gmail.com)
+
 **LinkedIn:** [linkedin.com/in/nideshkannar](https://www.linkedin.com/in/nideshkannar)
+
 **License:** Open-Source (to be finalized, e.g., MIT or Apache-2.0)
+
 **Status:** Draft
+
 **Date:** November 2025
 
 ---
@@ -239,3 +245,4 @@ Passionate about bringing open silicon culture to student and research communiti
 🔗 [LinkedIn: Nidesh Kanna R](https://www.linkedin.com/in/nideshkannar)
 
 ---
+
