@@ -58,11 +58,11 @@ The name also represents **lightness and modularity**, core design goals of the 
 - Python + Cocotb for automated verification  
 - Git + GitHub for version control  
 
-#### 🏫 College Lab (CentOS with Cadence Tools)
+#### 🏫 College Lab (Cadence Design Tools)
 - Cadence Genus, Innovus, and JasperGold for synthesis, PnR, and formal verification  
 - Use of commercial-grade environment for ASIC signoff exploration  
 
-This dual-environment flow ensures the design can be built and tested both **openly (on Ubuntu)** and **professionally (on CentOS/Cadence)**.
+This dual-environment flow ensures the design can be built and tested both **openly (on Ubuntu)** and **professionally (on Cadence Design Tools)**.
 
 ---
 
