@@ -11,7 +11,7 @@ The RTL implements a **5-stage in-order pipeline** architecture — **Fetch, Dec
 
 | File                  | Description                                                                                                                                                                      |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **butterfly_core.sv** | 🔹 **Top-level core module** that connects all submodules. Handles instruction flow between pipeline stages, global control signals, and exception handling.                     |
+| **butterfly_core.sv** |  **Top-level core module** that connects all submodules. Handles instruction flow between pipeline stages, global control signals, and exception handling.                     |
 | **alu.sv**            | Implements the **Arithmetic Logic Unit** supporting addition, subtraction, logical ops, shifts, and set-less-than operations. Also provides flag signals (zero, sign, overflow). |
 | **regfile.sv**        | Dual-read and single-write **Register File** for 32 general-purpose registers (`x0–x31`). Register `x0` is hardwired to zero.                                                    |
 | **decoder.sv**        | Parses 32-bit RISC-V instructions and generates control signals (ALU operation, register usage, immediate types, branch type, memory access).                                    |
