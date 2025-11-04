@@ -68,8 +68,11 @@ This modular structure allows each functional block to be designed, simulated, a
 ## 👨‍💻 Author
 
 **Nidesh Kanna R**
+
 VLSI Design & Technology, Chennai Institute of Technology
+
 📧 [nideshram01@gmail.com](mailto:nideshram01@gmail.com)
+
 🔗 [LinkedIn – Nidesh Kanna R](https://www.linkedin.com/in/nideshkannar/)
 
 ---
