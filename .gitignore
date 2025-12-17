@@ -1,0 +1,4 @@
+# Simulation binaries
+*_tb
+*.vvp
+obj_dir/
