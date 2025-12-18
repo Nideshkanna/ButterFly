@@ -30,7 +30,6 @@ module decoder (
     output logic [2:0]  branch_type_o
 );
 
-    import butterfly_pkg::*;
 
     // ---------------------------------------------------------
     // Instruction fields
