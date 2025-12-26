@@ -4,7 +4,7 @@
 // Author    : Nidesh Kanna R
 // Description:
 //   Top-level core integration
-//   Phase C1.3: IF + ID + EX (ALU execution)
+//   Phase C1.4: IF + ID + EX + EX/MEM pipeline register
 //============================================================
 
 `include "butterfly_pkg.sv"
@@ -65,6 +65,7 @@ module butterfly_core (
     logic [31:0] imm;
     logic [3:0]  alu_op;
     logic        reg_we;
+    logic        mem_we;
 
     decoder u_decoder (
         .instr_i        (if_id_instr),
@@ -77,7 +78,7 @@ module butterfly_core (
 
         .reg_write_o    (reg_we),
         .mem_read_o     (),
-        .mem_write_o    (),
+        .mem_write_o    (mem_we),
         .branch_o       (),
         .jump_o         (),
 
@@ -99,6 +100,7 @@ module butterfly_core (
         .rs1_data_o (rs1_data),
         .rs2_data_o (rs2_data),
 
+        // Writeback disabled in C1.4
         .rd_addr_i  (5'b0),
         .rd_data_i  (32'b0),
         .rd_we_i    (1'b0)
@@ -110,12 +112,34 @@ module butterfly_core (
     logic [31:0] alu_result;
 
     alu u_alu (
-        .operand_a_i (rs1_data),
-        .operand_b_i (imm),
-        .alu_op_i    (alu_op),
-        .alu_result_o(alu_result),
-        .zero_o      ()
+        .operand_a_i  (rs1_data),
+        .operand_b_i  (imm),
+        .alu_op_i     (alu_op),
+        .alu_result_o (alu_result),
+        .zero_o       ()
     );
+
+    // ---------------------------------------------------------
+    // EX/MEM pipeline registers
+    // ---------------------------------------------------------
+    logic [31:0] ex_mem_alu_result;
+    logic [4:0]  ex_mem_rd;
+    logic        ex_mem_reg_we;
+    logic        ex_mem_mem_we;
+
+    always_ff @(posedge clk_i or negedge rst_n_i) begin
+        if (!rst_n_i) begin
+            ex_mem_alu_result <= 32'b0;
+            ex_mem_rd         <= 5'b0;
+            ex_mem_reg_we     <= 1'b0;
+            ex_mem_mem_we     <= 1'b0;
+        end else begin
+            ex_mem_alu_result <= alu_result;
+            ex_mem_rd         <= rd;
+            ex_mem_reg_we     <= reg_we;
+            ex_mem_mem_we     <= mem_we;
+        end
+    end
 
     // ---------------------------------------------------------
     // Disable data memory (for now)
