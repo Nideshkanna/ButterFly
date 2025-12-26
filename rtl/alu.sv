@@ -18,8 +18,6 @@ module alu (
     output logic        zero_o
 );
 
-    import butterfly_pkg::*;
-
     // ---------------------------------------------------------
     // Combinational ALU logic
     // ---------------------------------------------------------
