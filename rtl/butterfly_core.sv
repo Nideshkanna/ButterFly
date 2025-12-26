@@ -4,7 +4,7 @@
 // Author    : Nidesh Kanna R
 // Description:
 //   Top-level core integration
-//   Phase C1.5: IF + ID + EX + EX/MEM + MEM (stores enabled)
+//   Phase C1.5: IF + ID + EX + EX/MEM + MEM (store-only)
 //============================================================
 
 `include "butterfly_pkg.sv"
@@ -28,7 +28,7 @@ module butterfly_core (
 );
 
     // ---------------------------------------------------------
-    // IF stage: Program Counter
+    // IF stage
     // ---------------------------------------------------------
     logic [31:0] pc_q, pc_d;
 
@@ -43,23 +43,19 @@ module butterfly_core (
     assign imem_addr_o = pc_q;
 
     // ---------------------------------------------------------
-    // IF/ID pipeline register
+    // IF/ID pipeline
     // ---------------------------------------------------------
-    logic [31:0] if_id_pc;
     logic [31:0] if_id_instr;
 
     always_ff @(posedge clk_i or negedge rst_n_i) begin
-        if (!rst_n_i) begin
-            if_id_pc    <= 32'b0;
+        if (!rst_n_i)
             if_id_instr <= 32'b0;
-        end else begin
-            if_id_pc    <= pc_q;
+        else
             if_id_instr <= imem_rdata_i;
-        end
     end
 
     // ---------------------------------------------------------
-    // ID stage: Decoder
+    // ID stage
     // ---------------------------------------------------------
     logic [4:0]  rs1, rs2, rd;
     logic [31:0] imm;
@@ -69,19 +65,15 @@ module butterfly_core (
 
     decoder u_decoder (
         .instr_i        (if_id_instr),
-
         .rs1_addr_o     (rs1),
         .rs2_addr_o     (rs2),
         .rd_addr_o      (rd),
-
         .imm_o          (imm),
-
         .reg_write_o    (reg_we),
         .mem_read_o     (),
         .mem_write_o    (mem_we),
         .branch_o       (),
         .jump_o         (),
-
         .alu_op_o       (alu_op),
         .branch_type_o  ()
     );
@@ -94,20 +86,17 @@ module butterfly_core (
     regfile u_regfile (
         .clk_i      (clk_i),
         .rst_n_i    (rst_n_i),
-
         .rs1_addr_i (rs1),
         .rs2_addr_i (rs2),
         .rs1_data_o (rs1_data),
         .rs2_data_o (rs2_data),
-
-        // Writeback disabled in C1.5
         .rd_addr_i  (5'b0),
         .rd_data_i  (32'b0),
         .rd_we_i    (1'b0)
     );
 
     // ---------------------------------------------------------
-    // EX stage: ALU
+    // EX stage
     // ---------------------------------------------------------
     logic [31:0] alu_result;
 
@@ -120,54 +109,32 @@ module butterfly_core (
     );
 
     // ---------------------------------------------------------
-    // EX/MEM pipeline registers
+    // EX/MEM pipeline
     // ---------------------------------------------------------
-    logic [31:0] ex_mem_alu_result;
-    logic [31:0] ex_mem_rs2_data;
-    logic [4:0]  ex_mem_rd;
-    logic        ex_mem_reg_we;
+    logic [31:0] ex_mem_addr;
+    logic [31:0] ex_mem_wdata;
     logic        ex_mem_mem_we;
 
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
-            ex_mem_alu_result <= 32'b0;
-            ex_mem_rs2_data   <= 32'b0;
-            ex_mem_rd         <= 5'b0;
-            ex_mem_reg_we     <= 1'b0;
-            ex_mem_mem_we     <= 1'b0;
+            ex_mem_addr   <= 32'b0;
+            ex_mem_wdata  <= 32'b0;
+            ex_mem_mem_we <= 1'b0;
         end else begin
-            ex_mem_alu_result <= alu_result;
-            ex_mem_rs2_data   <= rs2_data;
-            ex_mem_rd        <= rd;
-            ex_mem_reg_we     <= reg_we;
-            ex_mem_mem_we     <= mem_we;
+            ex_mem_addr   <= alu_result;
+            ex_mem_wdata  <= rs2_data;
+            ex_mem_mem_we <= mem_we;
         end
     end
 
     // ---------------------------------------------------------
-    // MEM stage: Memory Interface (stores only)
+    // MEM stage (direct store)
     // ---------------------------------------------------------
-    mem_if u_mem_if (
-        .clk_i        (clk_i),
-        .rst_n_i      (rst_n_i),
-
-        .addr_i       (ex_mem_alu_result),
-        .wdata_i      (ex_mem_rs2_data),
-        .we_i         (ex_mem_mem_we),
-        .valid_i      (ex_mem_mem_we),
-
-        .rdata_o      (),               // loads later
-        .ready_o      (),
-
-        // External memory interface
-        .dmem_valid_o (dmem_valid_o),
-        .dmem_we_o    (dmem_we_o),
-        .dmem_addr_o  (dmem_addr_o),
-        .dmem_wdata_o (dmem_wdata_o),
-        .dmem_wstrb_o (dmem_wstrb_o),
-        .dmem_rdata_i (dmem_rdata_i),
-        .dmem_ready_i (dmem_ready_i)
-    );
+    assign dmem_valid_o = ex_mem_mem_we;
+    assign dmem_we_o    = ex_mem_mem_we;
+    assign dmem_addr_o  = ex_mem_addr;
+    assign dmem_wdata_o = ex_mem_wdata;
+    assign dmem_wstrb_o = 4'b1111; // word store (SW)
 
 endmodule
- 
+
