@@ -4,7 +4,7 @@
 // Author    : Nidesh Kanna R
 // Description:
 //   Top-level core integration
-//   Phase C1.4: IF + ID + EX + EX/MEM pipeline register
+//   Phase C1.5: IF + ID + EX + EX/MEM + MEM (stores enabled)
 //============================================================
 
 `include "butterfly_pkg.sv"
@@ -17,7 +17,7 @@ module butterfly_core (
     output logic [31:0]  imem_addr_o,
     input  logic [31:0]  imem_rdata_i,
 
-    // Data memory interface (unused for now)
+    // Data memory interface
     output logic        dmem_valid_o,
     output logic        dmem_we_o,
     output logic [31:0] dmem_addr_o,
@@ -100,7 +100,7 @@ module butterfly_core (
         .rs1_data_o (rs1_data),
         .rs2_data_o (rs2_data),
 
-        // Writeback disabled in C1.4
+        // Writeback disabled in C1.5
         .rd_addr_i  (5'b0),
         .rd_data_i  (32'b0),
         .rd_we_i    (1'b0)
@@ -123,6 +123,7 @@ module butterfly_core (
     // EX/MEM pipeline registers
     // ---------------------------------------------------------
     logic [31:0] ex_mem_alu_result;
+    logic [31:0] ex_mem_rs2_data;
     logic [4:0]  ex_mem_rd;
     logic        ex_mem_reg_we;
     logic        ex_mem_mem_we;
@@ -130,25 +131,43 @@ module butterfly_core (
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
             ex_mem_alu_result <= 32'b0;
+            ex_mem_rs2_data   <= 32'b0;
             ex_mem_rd         <= 5'b0;
             ex_mem_reg_we     <= 1'b0;
             ex_mem_mem_we     <= 1'b0;
         end else begin
             ex_mem_alu_result <= alu_result;
-            ex_mem_rd         <= rd;
+            ex_mem_rs2_data   <= rs2_data;
+            ex_mem_rd        <= rd;
             ex_mem_reg_we     <= reg_we;
             ex_mem_mem_we     <= mem_we;
         end
     end
 
     // ---------------------------------------------------------
-    // Disable data memory (for now)
+    // MEM stage: Memory Interface (stores only)
     // ---------------------------------------------------------
-    assign dmem_valid_o = 1'b0;
-    assign dmem_we_o    = 1'b0;
-    assign dmem_addr_o  = 32'b0;
-    assign dmem_wdata_o = 32'b0;
-    assign dmem_wstrb_o = 4'b0;
+    mem_if u_mem_if (
+        .clk_i        (clk_i),
+        .rst_n_i      (rst_n_i),
+
+        .addr_i       (ex_mem_alu_result),
+        .wdata_i      (ex_mem_rs2_data),
+        .we_i         (ex_mem_mem_we),
+        .valid_i      (ex_mem_mem_we),
+
+        .rdata_o      (),               // loads later
+        .ready_o      (),
+
+        // External memory interface
+        .dmem_valid_o (dmem_valid_o),
+        .dmem_we_o    (dmem_we_o),
+        .dmem_addr_o  (dmem_addr_o),
+        .dmem_wdata_o (dmem_wdata_o),
+        .dmem_wstrb_o (dmem_wstrb_o),
+        .dmem_rdata_i (dmem_rdata_i),
+        .dmem_ready_i (dmem_ready_i)
+    );
 
 endmodule
-
+ 
