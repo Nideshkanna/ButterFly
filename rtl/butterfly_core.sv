@@ -4,7 +4,7 @@
 // Author    : Nidesh Kanna R
 // Description:
 //   Top-level core integration
-//   Phase C1.5: IF + ID + EX + EX/MEM + MEM (store-only)
+//   Phase C2.2: Load + Store support
 //============================================================
 
 `include "butterfly_pkg.sv"
@@ -27,9 +27,9 @@ module butterfly_core (
     input  logic        dmem_ready_i
 );
 
-    // ---------------------------------------------------------
+    // =========================================================
     // IF stage
-    // ---------------------------------------------------------
+    // =========================================================
     logic [31:0] pc_q, pc_d;
 
     always_ff @(posedge clk_i or negedge rst_n_i) begin
@@ -42,9 +42,9 @@ module butterfly_core (
     assign pc_d        = pc_q + 32'd4;
     assign imem_addr_o = pc_q;
 
-    // ---------------------------------------------------------
-    // IF/ID pipeline
-    // ---------------------------------------------------------
+    // =========================================================
+    // IF/ID pipeline register
+    // =========================================================
     logic [31:0] if_id_instr;
 
     always_ff @(posedge clk_i or negedge rst_n_i) begin
@@ -54,14 +54,15 @@ module butterfly_core (
             if_id_instr <= imem_rdata_i;
     end
 
-    // ---------------------------------------------------------
+    // =========================================================
     // ID stage
-    // ---------------------------------------------------------
+    // =========================================================
     logic [4:0]  rs1, rs2, rd;
     logic [31:0] imm;
     logic [3:0]  alu_op;
     logic        reg_we;
-    logic        mem_we;
+    logic        mem_read;
+    logic        mem_write;
 
     decoder u_decoder (
         .instr_i        (if_id_instr),
@@ -70,18 +71,21 @@ module butterfly_core (
         .rd_addr_o      (rd),
         .imm_o          (imm),
         .reg_write_o    (reg_we),
-        .mem_read_o     (),
-        .mem_write_o    (mem_we),
+        .mem_read_o     (mem_read),
+        .mem_write_o    (mem_write),
         .branch_o       (),
         .jump_o         (),
         .alu_op_o       (alu_op),
         .branch_type_o  ()
     );
 
-    // ---------------------------------------------------------
+    // =========================================================
     // Register File
-    // ---------------------------------------------------------
+    // =========================================================
     logic [31:0] rs1_data, rs2_data;
+    logic [31:0] wb_data;
+    logic [4:0]  wb_rd;
+    logic        wb_we;
 
     regfile u_regfile (
         .clk_i      (clk_i),
@@ -90,14 +94,14 @@ module butterfly_core (
         .rs2_addr_i (rs2),
         .rs1_data_o (rs1_data),
         .rs2_data_o (rs2_data),
-        .rd_addr_i  (5'b0),
-        .rd_data_i  (32'b0),
-        .rd_we_i    (1'b0)
+        .rd_addr_i  (wb_rd),
+        .rd_data_i  (wb_data),
+        .rd_we_i    (wb_we)
     );
 
-    // ---------------------------------------------------------
+    // =========================================================
     // EX stage
-    // ---------------------------------------------------------
+    // =========================================================
     logic [31:0] alu_result;
 
     alu u_alu (
@@ -108,33 +112,86 @@ module butterfly_core (
         .zero_o       ()
     );
 
-    // ---------------------------------------------------------
-    // EX/MEM pipeline
-    // ---------------------------------------------------------
-    logic [31:0] ex_mem_addr;
-    logic [31:0] ex_mem_wdata;
-    logic        ex_mem_mem_we;
+    // =========================================================
+    // EX/MEM pipeline register
+    // =========================================================
+    logic [31:0] ex_mem_alu_result;
+    logic [31:0] ex_mem_rs2_data;
+    logic [4:0]  ex_mem_rd;
+    logic        ex_mem_reg_we;
+    logic        ex_mem_mem_read;
+    logic        ex_mem_mem_write;
 
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
-            ex_mem_addr   <= 32'b0;
-            ex_mem_wdata  <= 32'b0;
-            ex_mem_mem_we <= 1'b0;
+            ex_mem_alu_result <= 32'b0;
+            ex_mem_rs2_data   <= 32'b0;
+            ex_mem_rd         <= 5'b0;
+            ex_mem_reg_we     <= 1'b0;
+            ex_mem_mem_read   <= 1'b0;
+            ex_mem_mem_write  <= 1'b0;
         end else begin
-            ex_mem_addr   <= alu_result;
-            ex_mem_wdata  <= rs2_data;
-            ex_mem_mem_we <= mem_we;
+            ex_mem_alu_result <= alu_result;
+            ex_mem_rs2_data   <= rs2_data;
+            ex_mem_rd         <= rd;
+            ex_mem_reg_we     <= reg_we;
+            ex_mem_mem_read   <= mem_read;
+            ex_mem_mem_write  <= mem_write;
         end
     end
 
-    // ---------------------------------------------------------
-    // MEM stage (direct store)
-    // ---------------------------------------------------------
-    assign dmem_valid_o = ex_mem_mem_we;
-    assign dmem_we_o    = ex_mem_mem_we;
-    assign dmem_addr_o  = ex_mem_addr;
-    assign dmem_wdata_o = ex_mem_wdata;
-    assign dmem_wstrb_o = 4'b1111; // word store (SW)
+    // =========================================================
+    // MEM stage (Load + Store)
+    // =========================================================
+    logic [31:0] mem_rdata;
+    logic        mem_ready;
+
+    mem_if u_mem_if (
+        .clk_i        (clk_i),
+        .rst_n_i      (rst_n_i),
+
+        .mem_req_i    (ex_mem_mem_read | ex_mem_mem_write),
+        .mem_we_i     (ex_mem_mem_write),
+        .mem_addr_i  (ex_mem_alu_result),
+        .mem_wdata_i (ex_mem_rs2_data),
+        .mem_size_i  (2'b10),   // WORD
+
+        .mem_rdata_o (mem_rdata),
+        .mem_ready_o (mem_ready),
+
+        .mem_valid_o (dmem_valid_o),
+        .mem_write_o (dmem_we_o),
+        .mem_addr_o  (dmem_addr_o),
+        .mem_wdata_o (dmem_wdata_o),
+        .mem_wstrb_o (dmem_wstrb_o),
+        .mem_rdata_i (dmem_rdata_i),
+        .mem_ready_i (dmem_ready_i)
+    );
+
+    // =========================================================
+    // MEM/WB pipeline register
+    // =========================================================
+    logic        wb_mem_read;
+    logic [31:0] wb_mem_data;
+
+    always_ff @(posedge clk_i or negedge rst_n_i) begin
+        if (!rst_n_i) begin
+            wb_rd        <= 5'b0;
+            wb_we        <= 1'b0;
+            wb_mem_read <= 1'b0;
+            wb_mem_data <= 32'b0;
+        end else begin
+            wb_rd        <= ex_mem_rd;
+            wb_we        <= ex_mem_reg_we;
+            wb_mem_read <= ex_mem_mem_read;
+            wb_mem_data <= mem_rdata;
+        end
+    end
+
+    // =========================================================
+    // Writeback stage
+    // =========================================================
+    assign wb_data = wb_mem_read ? wb_mem_data : ex_mem_alu_result;
 
 endmodule
 
