@@ -4,7 +4,7 @@
 // Author    : Nidesh Kanna R
 // Description:
 //   Top-level core integration
-//   Phase C3: Branch & Jump support
+//   Phase C4.1: EX-stage forwarding
 //============================================================
 
 `include "butterfly_pkg.sv"
@@ -42,7 +42,7 @@ module butterfly_core (
     assign imem_addr_o = pc_q;
 
     // =========================================================
-    // IF/ID pipeline register (flush on branch)
+    // IF/ID pipeline register
     // =========================================================
     logic [31:0] if_id_instr;
     logic [31:0] if_id_pc;
@@ -50,9 +50,6 @@ module butterfly_core (
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
             if_id_instr <= 32'b0;
-            if_id_pc    <= 32'b0;
-        end else if (branch_taken) begin
-            if_id_instr <= 32'b0; // flush
             if_id_pc    <= 32'b0;
         end else begin
             if_id_instr <= imem_rdata_i;
@@ -66,12 +63,7 @@ module butterfly_core (
     logic [4:0]  rs1, rs2, rd;
     logic [31:0] imm;
     logic [3:0]  alu_op;
-    logic        reg_we;
-    logic        mem_read;
-    logic        mem_write;
-    logic        branch;
-    logic        jump;
-    logic [2:0]  branch_type;
+    logic        reg_we, mem_read, mem_write;
 
     decoder u_decoder (
         .instr_i        (if_id_instr),
@@ -82,10 +74,10 @@ module butterfly_core (
         .reg_write_o    (reg_we),
         .mem_read_o     (mem_read),
         .mem_write_o    (mem_write),
-        .branch_o       (branch),
-        .jump_o         (jump),
+        .branch_o       (),
+        .jump_o         (),
         .alu_op_o       (alu_op),
-        .branch_type_o  (branch_type)
+        .branch_type_o  ()
     );
 
     // =========================================================
@@ -109,39 +101,60 @@ module butterfly_core (
     );
 
     // =========================================================
-    // EX stage
+    // EX-stage forwarding logic
+    // =========================================================
+    logic [1:0] fwd_a_sel, fwd_b_sel;
+    logic [31:0] alu_op_a, alu_op_b;
+
+    always_comb begin
+        fwd_a_sel = 2'b00;
+        fwd_b_sel = 2'b00;
+
+        // EX/MEM forwarding (highest priority)
+        if (ex_mem_reg_we && (ex_mem_rd != 5'd0)) begin
+            if (ex_mem_rd == rs1) fwd_a_sel = 2'b10;
+            if (ex_mem_rd == rs2) fwd_b_sel = 2'b10;
+        end
+
+        // MEM/WB forwarding
+        if (wb_we && (wb_rd != 5'd0)) begin
+            if ((wb_rd == rs1) && (fwd_a_sel == 2'b00))
+                fwd_a_sel = 2'b01;
+            if ((wb_rd == rs2) && (fwd_b_sel == 2'b00))
+                fwd_b_sel = 2'b01;
+        end
+    end
+
+    // Forwarded operand A
+    always_comb begin
+        case (fwd_a_sel)
+            2'b10: alu_op_a = ex_mem_alu_result;
+            2'b01: alu_op_a = wb_data;
+            default: alu_op_a = rs1_data;
+        endcase
+    end
+
+    // Forwarded operand B
+    always_comb begin
+        case (fwd_b_sel)
+            2'b10: alu_op_b = ex_mem_alu_result;
+            2'b01: alu_op_b = wb_data;
+            default: alu_op_b = imm;
+        endcase
+    end
+
+    // =========================================================
+    // EX stage: ALU
     // =========================================================
     logic [31:0] alu_result;
 
     alu u_alu (
-        .operand_a_i  (rs1_data),
-        .operand_b_i  (imm),
+        .operand_a_i  (alu_op_a),
+        .operand_b_i  (alu_op_b),
         .alu_op_i     (alu_op),
         .alu_result_o (alu_result),
         .zero_o       ()
     );
-
-    // =========================================================
-    // Branch Unit (EX stage)
-    // =========================================================
-    logic branch_taken;
-    logic [31:0] branch_target;
-
-    branch_unit u_branch (
-        .pc_i            (if_id_pc),
-        .rs1_data_i      (rs1_data),
-        .rs2_data_i      (rs2_data),
-        .imm_i           (imm),
-        .branch_type_i   (branch_type),
-        .branch_en_i     (branch),
-        .branch_taken_o  (branch_taken),
-        .branch_target_o (branch_target)
-    );
-
-    // =========================================================
-    // PC update logic
-    // =========================================================
-    assign pc_d = branch_taken ? branch_target : (pc_q + 32'd4);
 
     // =========================================================
     // EX/MEM pipeline register
@@ -220,6 +233,11 @@ module butterfly_core (
     // Writeback stage
     // =========================================================
     assign wb_data = wb_mem_read ? wb_mem_data : ex_mem_alu_result;
+
+    // =========================================================
+    // PC update
+    // =========================================================
+    assign pc_d = pc_q + 32'd4;
 
 endmodule
 
