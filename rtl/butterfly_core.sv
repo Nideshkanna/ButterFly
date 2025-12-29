@@ -4,7 +4,7 @@
 // Author    : Nidesh Kanna R
 // Description:
 //   Top-level core integration
-//   Phase C2.2: Load + Store support
+//   Phase C3: Branch & Jump support
 //============================================================
 
 `include "butterfly_pkg.sv"
@@ -39,19 +39,25 @@ module butterfly_core (
             pc_q <= pc_d;
     end
 
-    assign pc_d        = pc_q + 32'd4;
     assign imem_addr_o = pc_q;
 
     // =========================================================
-    // IF/ID pipeline register
+    // IF/ID pipeline register (flush on branch)
     // =========================================================
     logic [31:0] if_id_instr;
+    logic [31:0] if_id_pc;
 
     always_ff @(posedge clk_i or negedge rst_n_i) begin
-        if (!rst_n_i)
+        if (!rst_n_i) begin
             if_id_instr <= 32'b0;
-        else
+            if_id_pc    <= 32'b0;
+        end else if (branch_taken) begin
+            if_id_instr <= 32'b0; // flush
+            if_id_pc    <= 32'b0;
+        end else begin
             if_id_instr <= imem_rdata_i;
+            if_id_pc    <= pc_q;
+        end
     end
 
     // =========================================================
@@ -63,6 +69,9 @@ module butterfly_core (
     logic        reg_we;
     logic        mem_read;
     logic        mem_write;
+    logic        branch;
+    logic        jump;
+    logic [2:0]  branch_type;
 
     decoder u_decoder (
         .instr_i        (if_id_instr),
@@ -73,10 +82,10 @@ module butterfly_core (
         .reg_write_o    (reg_we),
         .mem_read_o     (mem_read),
         .mem_write_o    (mem_write),
-        .branch_o       (),
-        .jump_o         (),
+        .branch_o       (branch),
+        .jump_o         (jump),
         .alu_op_o       (alu_op),
-        .branch_type_o  ()
+        .branch_type_o  (branch_type)
     );
 
     // =========================================================
@@ -113,6 +122,28 @@ module butterfly_core (
     );
 
     // =========================================================
+    // Branch Unit (EX stage)
+    // =========================================================
+    logic branch_taken;
+    logic [31:0] branch_target;
+
+    branch_unit u_branch (
+        .pc_i            (if_id_pc),
+        .rs1_data_i      (rs1_data),
+        .rs2_data_i      (rs2_data),
+        .imm_i           (imm),
+        .branch_type_i   (branch_type),
+        .branch_en_i     (branch),
+        .branch_taken_o  (branch_taken),
+        .branch_target_o (branch_target)
+    );
+
+    // =========================================================
+    // PC update logic
+    // =========================================================
+    assign pc_d = branch_taken ? branch_target : (pc_q + 32'd4);
+
+    // =========================================================
     // EX/MEM pipeline register
     // =========================================================
     logic [31:0] ex_mem_alu_result;
@@ -141,7 +172,7 @@ module butterfly_core (
     end
 
     // =========================================================
-    // MEM stage (Load + Store)
+    // MEM stage
     // =========================================================
     logic [31:0] mem_rdata;
     logic        mem_ready;
@@ -149,16 +180,13 @@ module butterfly_core (
     mem_if u_mem_if (
         .clk_i        (clk_i),
         .rst_n_i      (rst_n_i),
-
         .mem_req_i    (ex_mem_mem_read | ex_mem_mem_write),
         .mem_we_i     (ex_mem_mem_write),
         .mem_addr_i  (ex_mem_alu_result),
         .mem_wdata_i (ex_mem_rs2_data),
-        .mem_size_i  (2'b10),   // WORD
-
+        .mem_size_i  (2'b10),
         .mem_rdata_o (mem_rdata),
         .mem_ready_o (mem_ready),
-
         .mem_valid_o (dmem_valid_o),
         .mem_write_o (dmem_we_o),
         .mem_addr_o  (dmem_addr_o),
