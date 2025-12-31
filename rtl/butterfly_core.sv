@@ -4,7 +4,7 @@
 // Author    : Nidesh Kanna R
 // Description:
 //   Top-level core integration
-//   Phase C4.3: Branch hazard flush of ID/EX
+//   FIXED: Correct WB + Store forwarding
 //============================================================
 
 `include "butterfly_pkg.sv"
@@ -34,12 +34,12 @@ module butterfly_core (
 
     always_ff @(posedge clk_i or negedge rst_n_i)
         if (!rst_n_i) pc_q <= 32'h0;
-        else pc_q <= pc_d;
+        else          pc_q <= pc_d;
 
     assign imem_addr_o = pc_q;
 
     // =========================================================
-    // IF/ID pipeline register
+    // IF/ID
     // =========================================================
     logic [31:0] if_id_instr, if_id_pc;
 
@@ -54,7 +54,7 @@ module butterfly_core (
     logic [2:0]  branch_type;
 
     // =========================================================
-    // ID/EX (for hazard detect)
+    // ID/EX (for hazard detection)
     // =========================================================
     logic [4:0]  id_ex_rd;
     logic        id_ex_mem_read;
@@ -79,7 +79,7 @@ module butterfly_core (
             if_id_instr <= 32'b0;
             if_id_pc    <= 32'b0;
         end else if (branch_taken) begin
-            if_id_instr <= 32'b0;   // FLUSH
+            if_id_instr <= 32'b0; // FLUSH
             if_id_pc    <= 32'b0;
         end else if (!stall) begin
             if_id_instr <= imem_rdata_i;
@@ -106,7 +106,7 @@ module butterfly_core (
     );
 
     // =========================================================
-    // ID/EX register (stall + branch bubble)
+    // ID/EX register (bubble on stall / branch)
     // =========================================================
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i || stall || branch_taken) begin
@@ -141,7 +141,7 @@ module butterfly_core (
     );
 
     // =========================================================
-    // Branch unit (EX)
+    // Branch unit
     // =========================================================
     logic branch_taken;
     logic [31:0] branch_target;
@@ -160,32 +160,21 @@ module butterfly_core (
     // =========================================================
     // EX-stage forwarding
     // =========================================================
-    logic [1:0] fwd_a_sel, fwd_b_sel;
     logic [31:0] alu_op_a, alu_op_b;
 
     always_comb begin
-        fwd_a_sel = 2'b00;
-        fwd_b_sel = 2'b00;
+        alu_op_a = rs1_data;
+        alu_op_b = imm;
 
         if (ex_mem_reg_we && (ex_mem_rd != 0)) begin
-            if (ex_mem_rd == rs1) fwd_a_sel = 2'b10;
-            if (ex_mem_rd == rs2) fwd_b_sel = 2'b10;
+            if (ex_mem_rd == rs1) alu_op_a = ex_mem_alu_result;
+            if (ex_mem_rd == rs2) alu_op_b = ex_mem_alu_result;
         end
 
         if (wb_we && (wb_rd != 0)) begin
-            if ((wb_rd == rs1) && (fwd_a_sel == 0)) fwd_a_sel = 2'b01;
-            if ((wb_rd == rs2) && (fwd_b_sel == 0)) fwd_b_sel = 2'b01;
+            if (wb_rd == rs1) alu_op_a = wb_data;
+            if (wb_rd == rs2) alu_op_b = wb_data;
         end
-    end
-
-    always_comb begin
-        alu_op_a = (fwd_a_sel == 2'b10) ? ex_mem_alu_result :
-                   (fwd_a_sel == 2'b01) ? wb_data :
-                   rs1_data;
-
-        alu_op_b = (fwd_b_sel == 2'b10) ? ex_mem_alu_result :
-                   (fwd_b_sel == 2'b01) ? wb_data :
-                   imm;
     end
 
     // =========================================================
@@ -202,6 +191,20 @@ module butterfly_core (
     );
 
     // =========================================================
+    // Store-data forwarding (CRITICAL FIX)
+    // =========================================================
+    logic [31:0] store_data_fwd;
+
+    always_comb begin
+        store_data_fwd = rs2_data;
+
+        if (ex_mem_reg_we && (ex_mem_rd != 0) && (ex_mem_rd == rs2))
+            store_data_fwd = ex_mem_alu_result;
+        else if (wb_we && (wb_rd != 0) && (wb_rd == rs2))
+            store_data_fwd = wb_data;
+    end
+
+    // =========================================================
     // EX/MEM
     // =========================================================
     logic [31:0] ex_mem_alu_result;
@@ -211,7 +214,7 @@ module butterfly_core (
     logic        ex_mem_mem_read;
     logic        ex_mem_mem_write;
 
-    always_ff @(posedge clk_i or negedge rst_n_i)
+    always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
             ex_mem_alu_result <= 0;
             ex_mem_rs2_data   <= 0;
@@ -221,16 +224,19 @@ module butterfly_core (
             ex_mem_mem_write  <= 0;
         end else begin
             ex_mem_alu_result <= alu_result;
-            ex_mem_rs2_data   <= rs2_data;
+            ex_mem_rs2_data   <= store_data_fwd;
             ex_mem_rd         <= id_ex_rd;
             ex_mem_reg_we     <= id_ex_reg_we;
             ex_mem_mem_read   <= id_ex_mem_read;
             ex_mem_mem_write  <= mem_write;
         end
+    end
 
     // =========================================================
-    // MEM
+    // MEM stage
     // =========================================================
+    logic [31:0] mem_rdata;
+
     mem_if u_mem_if (
         .clk_i        (clk_i),
         .rst_n_i      (rst_n_i),
@@ -239,7 +245,7 @@ module butterfly_core (
         .mem_addr_i   (ex_mem_alu_result),
         .mem_wdata_i  (ex_mem_rs2_data),
         .mem_size_i   (2'b10),
-        .mem_rdata_o  (wb_data),
+        .mem_rdata_o  (mem_rdata),
         .mem_ready_o  (),
         .mem_valid_o  (dmem_valid_o),
         .mem_write_o  (dmem_we_o),
@@ -249,6 +255,21 @@ module butterfly_core (
         .mem_rdata_i  (dmem_rdata_i),
         .mem_ready_i  (dmem_ready_i)
     );
+
+    // =========================================================
+    // MEM/WB (WRITEBACK FIX)
+    // =========================================================
+    always_ff @(posedge clk_i or negedge rst_n_i) begin
+        if (!rst_n_i) begin
+            wb_data <= 0;
+            wb_rd   <= 0;
+            wb_we   <= 0;
+        end else begin
+            wb_data <= ex_mem_mem_read ? mem_rdata : ex_mem_alu_result;
+            wb_rd   <= ex_mem_rd;
+            wb_we   <= ex_mem_reg_we;
+        end
+    end
 
     // =========================================================
     // PC update

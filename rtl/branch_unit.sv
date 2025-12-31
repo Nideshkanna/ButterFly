@@ -21,8 +21,6 @@ module branch_unit (
     output logic [31:0] branch_target_o
 );
 
-    import butterfly_pkg::*;
-
     // ---------------------------------------------------------
     // Branch target calculation
     // ---------------------------------------------------------

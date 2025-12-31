@@ -4,9 +4,6 @@
 // Author    : Nidesh Kanna R
 // Description:
 //   Integer Register File (32 x 32-bit)
-//   - Two combinational read ports
-//   - One synchronous write port
-//   - Register x0 is hardwired to zero
 //============================================================
 
 `include "butterfly_pkg.sv"
@@ -30,9 +27,9 @@ module regfile (
 );
 
     // ---------------------------------------------------------
-    // Register array
+    // Register array (EXPOSED FOR TB)
     // ---------------------------------------------------------
-    logic [31:0] reg_array [31:0];
+    logic [31:0] regs [31:0];
 
     integer i;
 
@@ -41,33 +38,18 @@ module regfile (
     // ---------------------------------------------------------
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
-            // Clear registers on reset (x0 remains zero)
-            for (i = 0; i < 32; i = i + 1) begin
-                reg_array[i] <= 32'b0;
-            end
-        end else begin
-            if (rd_we_i && (rd_addr_i != 5'd0)) begin
-                reg_array[rd_addr_i] <= rd_data_i;
-            end
+            for (i = 0; i < 32; i = i + 1)
+                regs[i] <= 32'b0;
+        end else if (rd_we_i && (rd_addr_i != 5'd0)) begin
+            regs[rd_addr_i] <= rd_data_i;
         end
     end
 
     // ---------------------------------------------------------
     // Combinational read logic
     // ---------------------------------------------------------
-    always_comb begin
-        // Read port 1
-        if (rs1_addr_i == 5'd0)
-            rs1_data_o = 32'b0;
-        else
-            rs1_data_o = reg_array[rs1_addr_i];
-
-        // Read port 2
-        if (rs2_addr_i == 5'd0)
-            rs2_data_o = 32'b0;
-        else
-            rs2_data_o = reg_array[rs2_addr_i];
-    end
+    assign rs1_data_o = (rs1_addr_i == 5'd0) ? 32'b0 : regs[rs1_addr_i];
+    assign rs2_data_o = (rs2_addr_i == 5'd0) ? 32'b0 : regs[rs2_addr_i];
 
 endmodule
 
