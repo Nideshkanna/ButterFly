@@ -4,7 +4,11 @@
 // Author    : Nidesh Kanna R
 // Description:
 //   Top-level core integration
-//   FIXED: Correct WB + Store forwarding
+//   FIXED:
+//     - Correct branch PC (ID/EX PC)
+//     - Load-use stall
+//     - Branch-load stall
+//     - Store forwarding
 //============================================================
 
 `include "butterfly_pkg.sv"
@@ -54,25 +58,41 @@ module butterfly_core (
     logic [2:0]  branch_type;
 
     // =========================================================
-    // ID/EX (for hazard detection)
+    // ID/EX registers (hazard tracking)
     // =========================================================
     logic [4:0]  id_ex_rd;
     logic        id_ex_mem_read;
     logic        id_ex_reg_we;
+    logic [31:0] id_ex_pc;
 
     // =========================================================
     // Load-use stall
     // =========================================================
-    logic stall;
+    logic load_stall;
 
     always_comb begin
-        stall = id_ex_mem_read &&
-                (id_ex_rd != 5'd0) &&
-                ((id_ex_rd == rs1) || (id_ex_rd == rs2));
+        load_stall = id_ex_mem_read &&
+                     (id_ex_rd != 0) &&
+                     ((id_ex_rd == rs1) || (id_ex_rd == rs2));
     end
 
     // =========================================================
-    // IF/ID register (stall + branch flush)
+    // Branch-load stall (CRITICAL FIX)
+    // =========================================================
+    logic branch_stall;
+
+    always_comb begin
+        branch_stall = branch &&
+                       id_ex_mem_read &&
+                       (id_ex_rd != 0) &&
+                       ((id_ex_rd == rs1) || (id_ex_rd == rs2));
+    end
+
+    logic pipeline_stall;
+    assign pipeline_stall = load_stall | branch_stall;
+
+    // =========================================================
+    // IF/ID register
     // =========================================================
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
@@ -81,7 +101,7 @@ module butterfly_core (
         end else if (branch_taken) begin
             if_id_instr <= 32'b0; // FLUSH
             if_id_pc    <= 32'b0;
-        end else if (!stall) begin
+        end else if (!pipeline_stall) begin
             if_id_instr <= imem_rdata_i;
             if_id_pc    <= pc_q;
         end
@@ -106,17 +126,19 @@ module butterfly_core (
     );
 
     // =========================================================
-    // ID/EX register (bubble on stall / branch)
+    // ID/EX register
     // =========================================================
     always_ff @(posedge clk_i or negedge rst_n_i) begin
-        if (!rst_n_i || stall || branch_taken) begin
-            id_ex_rd       <= 5'b0;
-            id_ex_mem_read <= 1'b0;
-            id_ex_reg_we   <= 1'b0;
+        if (!rst_n_i || pipeline_stall || branch_taken) begin
+            id_ex_rd       <= 0;
+            id_ex_mem_read <= 0;
+            id_ex_reg_we   <= 0;
+            id_ex_pc       <= 0;
         end else begin
             id_ex_rd       <= rd;
             id_ex_mem_read <= mem_read;
             id_ex_reg_we   <= reg_we;
+            id_ex_pc       <= if_id_pc;
         end
     end
 
@@ -141,13 +163,13 @@ module butterfly_core (
     );
 
     // =========================================================
-    // Branch unit
+    // Branch unit (EX stage)
     // =========================================================
     logic branch_taken;
     logic [31:0] branch_target;
 
     branch_unit u_branch (
-        .pc_i            (if_id_pc),
+        .pc_i            (id_ex_pc),
         .rs1_data_i      (rs1_data),
         .rs2_data_i      (rs2_data),
         .imm_i           (imm),
@@ -191,16 +213,16 @@ module butterfly_core (
     );
 
     // =========================================================
-    // Store-data forwarding (CRITICAL FIX)
+    // Store forwarding
     // =========================================================
     logic [31:0] store_data_fwd;
 
     always_comb begin
         store_data_fwd = rs2_data;
 
-        if (ex_mem_reg_we && (ex_mem_rd != 0) && (ex_mem_rd == rs2))
+        if (ex_mem_reg_we && (ex_mem_rd == rs2))
             store_data_fwd = ex_mem_alu_result;
-        else if (wb_we && (wb_rd != 0) && (wb_rd == rs2))
+        else if (wb_we && (wb_rd == rs2))
             store_data_fwd = wb_data;
     end
 
@@ -257,7 +279,7 @@ module butterfly_core (
     );
 
     // =========================================================
-    // MEM/WB (WRITEBACK FIX)
+    // MEM/WB
     // =========================================================
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
@@ -274,9 +296,9 @@ module butterfly_core (
     // =========================================================
     // PC update
     // =========================================================
-    assign pc_d = branch_taken ? branch_target :
-                  stall        ? pc_q :
-                                pc_q + 32'd4;
+    assign pc_d = branch_taken   ? branch_target :
+                  pipeline_stall ? pc_q :
+                                    pc_q + 32'd4;
 
 endmodule
 

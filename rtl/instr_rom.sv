@@ -20,7 +20,7 @@ module instr_rom (
             mem[i] = 32'h00000013;
 
         // Load program (safe overlay)
-        $readmemh("programs/test_prog.hex", mem);
+        $readmemh("programs/test_prog.hex", mem, 0);
     end
 
     // Word-aligned fetch

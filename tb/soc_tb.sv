@@ -11,13 +11,15 @@ module soc_tb;
     always #5 clk = ~clk;
 
     initial begin
+        $dumpfile("soc.vcd");
+        $dumpvars(0, dut);   // <<<<<< IMPORTANT
+
         clk   = 0;
         rst_n = 0;
 
         #20 rst_n = 1;
 
-        // Let program execute
-        #200;
+        #500;
 
         $display("x1 = %0d", dut.u_core.u_regfile.regs[1]);
         $display("x2 = %0d", dut.u_core.u_regfile.regs[2]);

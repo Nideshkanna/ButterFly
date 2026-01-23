@@ -2,3 +2,22 @@
 *_tb
 *.vvp
 obj_dir/
+
+# Simulation outputs
+soc_sim
+*.vcd
+*.fst
+
+# GTKWave
+.gtkwave*
+*.save
+
+# Build artifacts
+sim/
+results/
+
+# Editor junk
+*~
+*.swp
+*.bak
+
