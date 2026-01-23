@@ -1,11 +1,12 @@
-# 🦋 ButterFly RISC-V Core  
-*A Custom Open-Source RISC-V Processor Project*  
+# 🦋 ButterFly RISC-V Core
+
+*A Custom Open-Source RISC-V Processor Project*
 
 ---
 
-### 🧠 Overview  
+## 🧠 Overview
 
-**ButterFly** is an educational and research-oriented **RISC-V processor core** designed from scratch, inspired by the open hardware movement and projects like **SHAKTI by IIT Madras**.  
+**ButterFly** is an educational and research-oriented **RISC-V processor core** designed from scratch, inspired by the open hardware movement and projects like **SHAKTI by IIT Madras**.
 
 The goal of ButterFly is to **design, verify, and prototype a clean, modular, and efficient RISC-V core** — starting from the **specification and microarchitecture** to **simulation, synthesis, and ASIC/FPGA implementation** — using both open-source and industry-standard tools.
 
@@ -13,124 +14,209 @@ This project blends **academic learning**, **hardware design exploration**, and 
 
 ---
 
-### 🪶 Why “ButterFly”?  
+## 🪶 Why “ButterFly”?
 
-Just as a butterfly evolves through distinct stages of growth, this project evolves from **specification → RTL → simulation → synthesis → layout**, symbolizing transformation and learning.  
+Just as a butterfly evolves through distinct stages of growth, this project evolves from
+**specification → RTL → simulation → synthesis → layout**, symbolizing transformation and learning.
 
 The name also represents **lightness and modularity**, core design goals of the architecture — a lightweight yet powerful open RISC-V core for exploration, education, and innovation.
 
 ---
 
-### 🎯 Objectives  
+## 🚀 Current Status (IMPORTANT)
 
-- Develop a **fully synthesizable RV32I RISC-V core** from scratch.  
-- Understand and document each stage of the **ASIC design flow**.  
-- Validate functionality through **simulation and FPGA prototyping**.  
-- Prepare the design up to the stage requiring **PDK integration** for fabrication.  
-- Bridge **open-source EDA tools** (Yosys, OpenLane, Verilator) with **industry tools** (Cadence Genus, Innovus).  
-- Contribute to the open hardware ecosystem with clear documentation and educational value.
+### ✅ **Version: v0.1 — Stable RTL Core**
 
----
+ButterFly has reached its **first stable milestone**:
 
-### 🧩 Repository Structure  
+* A **fully functional 5-stage pipelined RV32I core**
+* Verified through **directed test programs and waveform inspection**
+* Clean modular RTL, suitable for further expansion
 
-| Directory | Description |
-|------------|-------------|
-| **rtl/** | Verilog/SystemVerilog RTL source files for the core and submodules (ALU, Register File, Control Unit, etc.) |
-| **tb/** | Testbenches for functional and module-level verification |
-| **sim/** | Simulation scripts, Makefiles, waveform files, and automation |
-| **docs/** | Design specification, microarchitecture diagrams, and project documentation |
-| **scripts/** | Utility scripts for building, linting, and automation |
-| **synthesis/** | Yosys synthesis scripts, gate-level netlists, and reports |
-| **fpga/** | FPGA build scripts and configuration files for prototyping |
-| **openlane/** | OpenLane configuration for ASIC flow using open PDKs like Sky130 |
-| **results/** | Simulation outputs, synthesis reports, and experimental data |
-| **include/** | Parameter and macro definitions used across design files |
+> This repository currently represents **ButterFly v0.1**, frozen for stability and documentation.
 
 ---
 
-### ⚙️ Toolchain & Environment  
+## ✨ Implemented Features (v0.1)
 
-#### 🖥️ Local (Ubuntu 22.04)
-- Verilog/SystemVerilog for RTL Design  
-- Verilator / GTKWave for simulation  
-- Yosys + OpenROAD/OpenLane for synthesis and layout  
-- Python + Cocotb for automated verification  
-- Git + GitHub for version control  
+### 🧱 Microarchitecture
 
-#### 🏫 College Lab (Cadence Design Tools)
-- Cadence Genus, Innovus, and JasperGold for synthesis, PnR, and formal verification  
-- Use of commercial-grade environment for ASIC signoff exploration  
+* 5-stage pipeline: **IF → ID → EX → MEM → WB**
+* Separate instruction and data memory interfaces
+* Word-aligned instruction fetch
 
-This dual-environment flow ensures the design can be built and tested both **openly (on Ubuntu)** and **professionally (on Cadence Design Tools)**.
+### 🧠 ISA Support (Implemented)
 
----
+* **RV32I Base ISA (Partial)**
 
-### 🧱 Development Stages  
+  * Arithmetic: ADD, SUB, AND, OR, XOR
+  * Immediate: ADDI, ANDI, ORI
+  * Comparison: SLT, SLTU
+  * Shifts: SLL, SRL, SRA
+  * Memory: LW, SW
+  * Branch: BEQ, BNE, BLT, BGE, BLTU, BGEU
 
-1. **Specification & Architecture Design**  
-   Define ISA, pipeline stages, and memory subsystem.  
-2. **RTL Implementation**  
-   Modular Verilog coding of core components.  
-3. **Simulation & Verification**  
-   Testbench-driven functional validation.  
-4. **Synthesis**  
-   RTL → gate-level synthesis via Yosys / Genus.  
-5. **FPGA Prototyping**  
-   Hardware validation on FPGA boards.  
-6. **ASIC Flow Preparation**  
-   Floorplanning, PnR, DRC/LVS with open-source PDKs (Sky130).  
+> The full RV32IM support described in `specification.md` is the **architectural target**, not yet fully implemented.
 
 ---
 
-### 🌍 Vision  
+## 🚦 Hazard Handling (Implemented & Verified)
 
-ButterFly is built with the idea of **learning by doing** — to deeply understand what it takes to design a processor, and to inspire others to explore hardware from the transistor level up to the instruction pipeline.
+### ✔ Data Hazards
 
-The project will evolve through multiple iterations:
-- **Stage 1:** Functional RV32I Core  
-- **Stage 2:** Pipeline Optimization and Hazard Handling  
-- **Stage 3:** Integration with Caches and Interrupts  
-- **Stage 4:** FPGA/ASIC readiness and tapeout studies  
+* EX/MEM forwarding
+* MEM/WB forwarding
+* Store-data forwarding
+* Load-use hazard detection with pipeline stall insertion
 
----
+### ✔ Control Hazards
 
-### 🧑‍💻 About the Creator  
+* Static **not-taken** branch strategy
+* Branch resolution in **EX stage**
+* IF/ID flush + ID/EX bubble on taken branch
 
-**👋 Hi, I’m Nidesh Kanna R** — an undergraduate student in **Electronics Engineering (VLSI Design and Technology)** at **Chennai Institute of Technology**.  
-
-I’m passionate about **semiconductor design, open-source EDA, and embedded AI**, and I love building systems that merge learning with innovation — from custom ASICs to edge-AI hardware.  
-
-🔗 **LinkedIn:** [linkedin.com/in/nideshkannar/](https://www.linkedin.com/in/nideshkannar/)  
-📧 **Email:** [nideshram01@gmail.com](mailto:nideshram01@gmail.com)  
+These mechanisms are visible and verifiable in **GTKWave simulations**.
 
 ---
 
-### 🪴 Backstory  
+## 🧪 Simulation & Verification
 
-The ButterFly core was born out of curiosity and inspiration from the **SHAKTI project by IIT Madras**, which proved that academic open hardware could stand shoulder-to-shoulder with industrial IP cores.  
+### Run Simulation
 
-With access to both open-source and licensed toolchains, the aim is to bridge theory and practical chip design experience — to make learning VLSI **hands-on, exploratory, and deeply technical**.  
+```bash
+./scripts/run_sim.sh
+```
 
-This project represents not just a processor, but a **personal journey into silicon**.  
+Or manually:
+
+```bash
+iverilog -g2012 -I rtl \
+  rtl/*.sv tb/soc_tb.sv -o soc_sim
+vvp soc_sim
+```
+
+### View Waveforms
+
+```bash
+gtkwave soc.vcd
+```
+
+### Test Programs
+
+Located in `programs/`:
+
+* `test_basic.hex` — arithmetic + load/store
+* `test_branch.hex` — branch correctness
+* `test_load_use.hex` — load-use hazard validation
 
 ---
 
-### 🧭 License  
+## 🧩 Repository Structure
 
-This project is licensed under the **MIT License** — open for learning, modification, and contribution.  
+| Directory     | Description                                                     |
+| ------------- | --------------------------------------------------------------- |
+| **rtl/**      | Core RTL modules (pipeline, ALU, decoder, regfile, branch unit) |
+| **tb/**       | Module-level and SoC-level testbenches                          |
+| **programs/** | RISC-V test programs (HEX format)                               |
+| **scripts/**  | Simulation automation                                           |
+| **sim/**      | Simulation artifacts                                            |
+| **docs/**     | Architecture & specification documents                          |
+| **openlane/** | ASIC flow setup (Sky130)                                        |
+| **fpga/**     | FPGA prototyping (planned)                                      |
+| **results/**  | Reports and waveforms                                           |
+| **include/**  | Shared definitions and macros                                   |
 
 ---
 
-### 📜 Acknowledgements  
+## 📐 Specification Reference
 
-Special inspiration from:  
-- **SHAKTI Microprocessor Project, IIT Madras**  
-- **RISC-V Foundation & Open Hardware Community**  
-- **OpenLane, OpenROAD, and SkyWater OpenPDK teams**  
-- Mentors and peers at **Chennai Institute of Technology**
+The architectural intent of ButterFly is fully described in:
+
+📄 **`docs/specification.md`**
+
+That document defines:
+
+* Target ISA: **RV32IM**
+* Pipeline organization
+* CSR, interrupts, multiplier/divider
+* FPGA & ASIC goals
+
+> **README = implementation status**
+> **specification.md = architectural contract**
+
+This separation is intentional and professional.
 
 ---
 
-> “The butterfly doesn’t just fly — it transforms.”  
-> — *ButterFly Core: A student’s journey from RTL to silicon.*
+## ⚙️ Toolchain & Environment
+
+### 🖥️ Open-Source (Ubuntu 22.04)
+
+* SystemVerilog / Verilog RTL
+* Icarus Verilog + GTKWave
+* Yosys + OpenLane / OpenROAD
+* Git + GitHub
+
+### 🏫 Academic / Industry Tools
+
+* Cadence Genus, Innovus, JasperGold
+* Used for synthesis, PnR, and formal exploration
+
+---
+
+## 🚧 Known Limitations (v0.1)
+
+* JAL / JALR writeback not completed
+* No CSR or interrupt support yet
+* No cache or MMU
+* Data memory is stubbed for simulation
+* Multiplier/divider unit not yet integrated
+
+These are **planned**, not missing-by-mistake.
+
+---
+
+## 🗺️ Roadmap
+
+| Version  | Goal                            |
+| -------- | ------------------------------- |
+| **v0.1** | Stable RV32I pipelined core ✅   |
+| **v0.2** | JAL/JALR + full RV32I           |
+| **v1.0** | RV32IM + FPGA validation        |
+| **v2.0** | C extension, interrupts, caches |
+| **v3.0** | ASIC-ready Sky130 tapeout study |
+
+---
+
+## 🧑‍💻 About the Creator
+
+**Nidesh Kanna R**
+Undergraduate student specializing in **VLSI Design & Technology**,
+**Chennai Institute of Technology**, Chennai, India.
+
+Focused on **open-source ASIC design**, **processor microarchitecture**, and **AI-on-chip systems**.
+
+📧 [nideshram01@gmail.com](mailto:nideshram01@gmail.com)
+🔗 [LinkedIn: Nidesh Kanna R](https://www.linkedin.com/in/nideshkannar)
+
+---
+
+## 📜 License
+
+MIT License — free to use, learn, modify, and build upon.
+
+---
+
+## 🙏 Acknowledgements
+
+* **SHAKTI Microprocessor Project — IIT Madras**
+* RISC-V Foundation & Open Hardware Community
+* OpenLane, OpenROAD, SkyWater OpenPDK teams
+* Mentors and peers at **Chennai Institute of Technology**
+
+---
+
+> *“The butterfly doesn’t just fly — it transforms.”*
+> **ButterFly Core — a journey from RTL to silicon.**
+
+---
